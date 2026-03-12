@@ -65,6 +65,7 @@ urlpatterns = [
     path('alerts/', views.alert_list, name='alert_list'),
     path('alerts/low-stock/', views.get_low_stock_alerts, name='low_stock_alerts'),  # NEW
     path('alerts/<int:pk>/read/', views.alert_mark_read, name='alert_mark_read'),
+    path('alerts/<int:pk>/delete/', views.alert_delete, name='alert_delete'),
     
     # ==================== ADMIN ====================
     path('admin/add-monthly-salaries/', views.add_monthly_salaries_to_expenses, name='add_monthly_salaries'),  # NEW

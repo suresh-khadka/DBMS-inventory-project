@@ -2,6 +2,7 @@
 // import { API } from './api.js';
 
 let allProducts = []; // Store all products for search
+let isSubmittingProduct = false; // Prevent race condition on product submission
 
 function renderProductsTable(products) {
     const container = document.getElementById('productsTable');
@@ -93,6 +94,17 @@ async function loadProducts() {
         const data = await API.getProducts();
         if (data && data.success) {
             allProducts = data.data;
+            // Sort products by creation date (most recent first) or by ID in reverse order
+            if (allProducts && allProducts.length > 0) {
+                allProducts.sort((a, b) => {
+                    // Try sorting by created_at first
+                    if (a.created_at && b.created_at) {
+                        return new Date(b.created_at) - new Date(a.created_at);
+                    }
+                    // Fallback: sort by ID in reverse (assumes incrementing ID)
+                    return (parseInt(b.id) || 0) - (parseInt(a.id) || 0);
+                });
+            }
             renderProductsTable(allProducts);
         }
     } catch (error) {
@@ -164,23 +176,6 @@ function renderProductCard(product) {
 }
 
 function showAddProductModal() {
-     const formHTML = `
-        <div class="modal">
-            <h2>Add New Product</h2>
-            <form id="addProductForm">
-                <input type="text" name="product_name" placeholder="Product Name" required>
-                <textarea name="description" placeholder="Description"></textarea>
-                <input type="number" name="cost_price" placeholder="Cost Price (Rs)" required step="0.01">
-                <input type="number" name="selling_price" placeholder="Selling Price (Rs)" required step="0.01">
-                <input type="number" name="discount_price" placeholder="Discount Price (Rs) - Optional" step="0.01">
-                <input type="number" name="stock_level" placeholder="Stock Level" required>
-                <input type="number" name="min_stock_level" placeholder="Min Stock Level" value="10">
-                <input type="text" name="category" placeholder="Category">
-                <input type="text" name="supplier" placeholder="Supplier">
-                <button type="submit">Create Product</button>
-            </form>
-        </div>
-    `;
     const modalContainer = document.getElementById('modalContainer');
     modalContainer.innerHTML = `
         <div class="modal active">
@@ -232,22 +227,73 @@ function showAddProductModal() {
 
 async function submitProduct(event) {
     event.preventDefault();
+    
+    if (isSubmittingProduct) {
+        alert('Please wait for the current submission to complete');
+        return;
+    }
+    isSubmittingProduct = true;
+    
     const form = event.target;
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Adding...';
+    
+    // Collect form data carefully
     const formData = new FormData(form);
-    const data = Object.fromEntries(formData);
+    const data = {};
+    
+    // Manually build data object to ensure each field is captured correctly
+    data['product_name'] = (formData.get('product_name') || '').trim();
+    data['description'] = (formData.get('description') || '').trim();
+    data['cost_price'] = formData.get('cost_price');
+    data['selling_price'] = formData.get('selling_price');
+    data['discount_price'] = formData.get('discount_price');
+    data['stock_level'] = formData.get('stock_level');
+    data['min_stock_level'] = formData.get('min_stock_level');
+    data['category'] = (formData.get('category') || '').trim();
+    data['supplier'] = (formData.get('supplier') || '').trim();
+    
+    // Validate required fields
+    if (!data.product_name) {
+        alert('Product name is required');
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+        isSubmittingProduct = false;
+        return;
+    }
+    if (!data.cost_price || !data.selling_price || !data.stock_level) {
+        alert('Cost Price, Selling Price, and Stock Level are required');
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+        isSubmittingProduct = false;
+        return;
+    }
+    
+    console.log('Submitting product data:', JSON.stringify(data));
 
     try {
         const result = await API.createProduct(data);
+        console.log('API Response:', result);
         if (result && result.success) {
             alert(`Product created successfully! Barcode: ${result.product.barcode}`);
+            form.reset();
             closeModal();
-            loadProducts();
+            await loadProducts();
         } else {
-            alert(`Error creating product: ${result.errors ? JSON.stringify(result.errors) : result.error || 'Unknown error'}`);
+            const errorMsg = result.errors ? JSON.stringify(result.errors) : (result.error || 'Unknown error');
+            alert(`Error creating product: ${errorMsg}`);
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
         }
     } catch (error) {
         console.error('Error:', error);
         alert(`Error creating product: ${error.message}`);
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+    } finally {
+        isSubmittingProduct = false;
     }
 }
 

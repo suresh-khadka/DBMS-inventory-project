@@ -436,11 +436,11 @@ function applyRoleBasedUI() {
         
         // Hide menu items based on role
         if (user.role === 'employee') {
-            // Employees can only see: Dashboard, Products, Sales, Customers
+            // Employees can only see: Dashboard, Products, Sales, Customers, Employees
             const menuItems = document.querySelectorAll('.nav-item');
             menuItems.forEach(item => {
                 const page = item.getAttribute('data-page');
-                if (page === 'employees' || page === 'expenses' || page === 'reports') {
+                if (page === 'expenses' || page === 'reports') {
                     item.style.display = 'none';
                 }
             });

@@ -162,13 +162,14 @@ class Product(models.Model):
     # NEW FIELDS for Feature 6: Track sales count for top products
     total_sales_count = models.IntegerField(default=0)
     total_revenue = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
         db_table = 'products'
         verbose_name = 'Product'
         verbose_name_plural = 'Products'
+        ordering = ['-created_at']
     
     def __str__(self):
         return f"{self.product_name} ({self.barcode})"
@@ -184,6 +185,7 @@ class Product(models.Model):
         """
         Generate unique barcode from product name + 4 random digits
         Format: PRODUCTNAME1234
+        Only checks ACTIVE products (is_active=True) to allow reusing barcodes of deleted products
         """
         # Clean product name: remove special chars, uppercase, max 10 chars
         clean_name = re.sub(r'[^a-zA-Z0-9]', '', product_name).upper()[:10]
@@ -194,10 +196,13 @@ class Product(models.Model):
         # Combine
         barcode = f"{clean_name}{random_digits}"
         
-        # Check uniqueness
-        while Product.objects.filter(barcode=barcode).exists():
+        # Check uniqueness - only check ACTIVE products
+        max_retries = 100
+        retry_count = 0
+        while Product.objects.filter(barcode=barcode, is_active=True).exists() and retry_count < max_retries:
             random_digits = str(random.randint(1000, 9999))
             barcode = f"{clean_name}{random_digits}"
+            retry_count += 1
         
         return barcode
     

@@ -42,6 +42,22 @@ class IsWorkerOrAdmin(permissions.BasePermission):
     message = "Employee or admin access required."
 
 
+class CanViewEmployees(permissions.BasePermission):
+    """
+    Permission for employees and admins to view employee list
+    Used for: Employee listing/viewing
+    """
+    
+    def has_permission(self, request, view):
+        return (
+            request.user and 
+            request.user.is_authenticated and 
+            request.user.role in ['admin', 'employee']
+        )
+    
+    message = "Employee or admin access required to view employee list."
+
+
 # ==================== FEATURE 1: EMPLOYEE ACCESS ====================
 
 class CanViewSalesData(permissions.BasePermission):

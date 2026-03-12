@@ -35,7 +35,8 @@ from .permissions import (
     CanViewSalaries,
     CanManageExpenses,
     IsCustomer,
-    IsCustomerReadOnly
+    IsCustomerReadOnly,
+    CanViewEmployees
 )
 
 
@@ -195,65 +196,104 @@ def product_create(request):
         "supplier": "TechCorp"
     }
     """
-    data = request.data.copy()
-    
-    # Validate discount price
-    if 'discount_price' in data and data['discount_price']:
-        selling_price = Decimal(data.get('selling_price', 0))
-        discount_price = Decimal(data['discount_price'])
+    try:
+        data = request.data.copy()
         
-        if discount_price >= selling_price:
+        # DEBUG: Log incoming request
+        product_name = data.get('product_name', '').strip()
+        print(f"[DEBUG] Product Create Request - Name: {product_name}")
+        print(f"[DEBUG] Full Data: {dict(data)}")
+        
+        # Validate product name is not empty
+        if not product_name:
             return Response({
                 'success': False,
-                'error': 'Discount price must be less than selling price'
+                'error': 'Product name is required'
             }, status=status.HTTP_400_BAD_REQUEST)
-    
-    serializer = ProductSerializer(data=data)
-    
-    if serializer.is_valid():
-        product = serializer.save()
         
-        # Calculate discount percentage (already done in model.save())
-        discount_info = {}
-        if product.discount_price:
-            discount_info = {
-                'has_discount': True,
-                'discount_percentage': float(product.discount_percentage),
-                'original_price': float(product.selling_price),
-                'discount_price': float(product.discount_price),
-                'savings': float(product.selling_price - product.discount_price)
-            }
-        else:
-            discount_info = {
-                'has_discount': False
-            }
+        # Check for duplicate product names (only ACTIVE products)
+        if Product.objects.filter(product_name__iexact=product_name, is_active=True).exists():
+            return Response({
+                'success': False,
+                'error': f'Product with name "{product_name}" already exists'
+            }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Create inventory log
-        InventoryLog.objects.create(
-            barcode=product,
-            action='add',
-            quantity_changed=product.stock_level,
-            new_stock=product.stock_level,
-            performed_by=request.user,
-            notes=f"Product created with barcode: {product.barcode}"
-        )
+        # Validate discount price
+        if 'discount_price' in data and data['discount_price']:
+            try:
+                selling_price = Decimal(data.get('selling_price', 0))
+                discount_price = Decimal(data['discount_price'])
+                
+                if discount_price >= selling_price:
+                    return Response({
+                        'success': False,
+                        'error': 'Discount price must be less than selling price'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            except (ValueError, TypeError) as e:
+                return Response({
+                    'success': False,
+                    'error': f'Invalid price format: {str(e)}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        serializer = ProductSerializer(data=data)
+        
+        if serializer.is_valid():
+            product = serializer.save()
+            print(f"[DEBUG] Product Saved Successfully - Name: {product.product_name}, Barcode: {product.barcode}")
+            
+            # Refresh from database to ensure created_at is set
+            product.refresh_from_db()
+            
+            # Calculate discount percentage (already done in model.save())
+            discount_info = {}
+            if product.discount_price:
+                discount_info = {
+                    'has_discount': True,
+                    'discount_percentage': float(product.discount_percentage),
+                    'original_price': float(product.selling_price),
+                    'discount_price': float(product.discount_price),
+                    'savings': float(product.selling_price - product.discount_price)
+                }
+            else:
+                discount_info = {
+                    'has_discount': False
+                }
+            
+            # Create inventory log
+            InventoryLog.objects.create(
+                barcode=product,
+                action='add',
+                quantity_changed=product.stock_level,
+                new_stock=product.stock_level,
+                performed_by=request.user,
+                notes=f"Product created with barcode: {product.barcode}"
+            )
+            
+            return Response({
+                'success': True,
+                'message': 'Product created successfully',
+                'product': {
+                    'barcode': product.barcode,
+                    'product_name': product.product_name,
+                    'selling_price': float(product.selling_price),
+                    'created_at': product.created_at.isoformat(),
+                    **discount_info
+                },
+                'currency': 'Rs'
+            }, status=status.HTTP_201_CREATED)
         
         return Response({
-            'success': True,
-            'message': 'Product created successfully',
-            'product': {
-                'barcode': product.barcode,
-                'product_name': product.product_name,
-                'selling_price': float(product.selling_price),
-                **discount_info
-            },
-            'currency': 'Rs'
-        }, status=status.HTTP_201_CREATED)
+            'success': False,
+            'message': 'Some error occurred in add product',
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
     
-    return Response({
-        'success': False,
-        'errors': serializer.errors
-    }, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': 'Some error occurred in add product',
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
@@ -269,7 +309,13 @@ def product_detail(request, barcode):
 @permission_classes([IsAdminUser])
 def product_update(request, barcode):
     """Update product"""
-    product = get_object_or_404(Product, barcode=barcode)
+    try:
+        product = get_object_or_404(Product, barcode=barcode)
+    except:
+        return Response({
+            'success': False,
+            'message': f'Product with barcode {barcode} not found'
+        }, status=status.HTTP_404_NOT_FOUND)
     
     old_stock = product.stock_level
     serializer = ProductSerializer(product, data=request.data, partial=True)
@@ -290,11 +336,13 @@ def product_update(request, barcode):
         
         return Response({
             'success': True,
-            'message': 'Product updated successfully'
-        })
+            'message': 'Product updated successfully',
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
     
     return Response({
         'success': False,
+        'message': 'Error product not updated',
         'errors': serializer.errors
     }, status=status.HTTP_400_BAD_REQUEST)
 
@@ -402,9 +450,9 @@ def sale_detail(request, pk):
 # ==================== EMPLOYEES ====================
 
 @api_view(['GET'])
-@permission_classes([IsAdminUser])
+@permission_classes([CanViewEmployees])
 def employee_list(request):
-    """List all active employees"""
+    """List all active employees - accessible to admin and employees"""
     employees = Employee.objects.filter(is_active=True)
     serializer = EmployeeSerializer(employees, many=True, context={'request': request})
     return Response({'success': True, 'data': serializer.data})
@@ -728,6 +776,18 @@ def alert_mark_read(request, pk):
     return Response({
         'success': True,
         'message': 'Alert marked as read'
+    })
+
+
+@api_view(['DELETE'])
+@permission_classes([IsWorkerOrAdmin])
+def alert_delete(request, pk):
+    """Delete an alert"""
+    alert = get_object_or_404(Alert, pk=pk)
+    alert.delete()
+    return Response({
+        'success': True,
+        'message': 'Alert deleted successfully'
     })
 
 
