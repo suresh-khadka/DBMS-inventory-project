@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Inventory Management</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        /* Additional dashboard-specific styles */
+        .product-sale-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .sale-item strong {
+            color: #333;
+        }
+        
+        .today-sales-section,
+        .profit-loss-section,
+        .expenses-section,
+        .top-products-section,
+        .alerts-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .today-sales-section h2,
+        .profit-loss-section h2,
+        .expenses-section h2,
+        .top-products-section h2,
+        .alerts-section h2 {
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <div class="logo">📦 Inventory System</div>
+        </div>
+        <div class="header-right">
+            <span class="user-info" id="userInfo">Loading...</span>
+            <button class="btn btn-logout" onclick="logout()">Logout</button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <ul class="nav-menu">
+                <li class="nav-item active" data-page="dashboard">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-text">Dashboard</span>
+                </li>
+                <li class="nav-item" data-page="products">
+                    <span class="nav-icon">📦</span>
+                    <span class="nav-text">Products</span>
+                </li>
+                <li class="nav-item" data-page="sales">
+                    <span class="nav-icon">💰</span>
+                    <span class="nav-text">Sales</span>
+                </li>
+                <li class="nav-item" data-page="employees">
+                    <span class="nav-icon">👥</span>
+                    <span class="nav-text">Employees</span>
+                </li>
+                <li class="nav-item" data-page="customers">
+                    <span class="nav-icon">👤</span>
+                    <span class="nav-text">Customers</span>
+                </li>
+                <li class="nav-item" data-page="expenses">
+                    <span class="nav-icon">💸</span>
+                    <span class="nav-text">Expenses</span>
+                </li>
+                <li class="nav-item" data-page="reports">
+                    <span class="nav-icon">📈</span>
+                    <span class="nav-text">Reports</span>
+                </li>
+                <li class="nav-item" data-page="alerts">
+                    <span class="nav-icon">🔔</span>
+                    <span class="nav-text">Alerts</span>
+                    <span class="badge" id="alertBadge">0</span>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Content Area -->
+        <main class="content">
+            <!-- Dashboard View -->
+            <div class="content-view active" id="dashboardView">
+                <h1 class="page-title">Dashboard Overview</h1>
+                
+                <!-- Stats Grid -->
+                <div class="stats-grid" id="statsGrid">
+                    <div class="stat-card">
+                        <div class="stat-icon">📦</div>
+                        <div class="stat-content">
+                            <div class="stat-value">0</div>
+                            <div class="stat-label">Total Products</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⚠️</div>
+                        <div class="stat-content">
+                            <div class="stat-value">0</div>
+                            <div class="stat-label">Low Stock</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">💰</div>
+                        <div class="stat-content">
+                            <div class="stat-value">₹0</div>
+                            <div class="stat-label">Today's Sales</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-content">
+                            <div class="stat-value">₹0</div>
+                            <div class="stat-label">Monthly Revenue</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Today's Sales Section -->
+                <div class="today-sales-section">
+                    <h2>📅 Today's Sales</h2>
+                    <div class="sales-summary">
+                        <div class="stat-card">
+                            <h3 id="todayRevenue">₹0</h3>
+                            <p>Today's Revenue</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3 id="todaySalesCount">0</h3>
+                            <p>Sales Count</p>
+                        </div>
+                    </div>
+                    
+                    <div class="today-products-list">
+                        <h3>Products Sold Today</h3>
+                        <div id="todayProductsList">
+                            <p class="text-center">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Profit/Loss Section -->
+                <div class="profit-loss-section">
+                    <h2>💹 Profit/Loss</h2>
+                    <div class="profit-display">
+                        <h3 id="profitAmount">₹0</h3>
+                        <p id="profitPercentage">0%</p>
+                        <span id="profitStatus" class="status-badge">Calculating...</span>
+                    </div>
+                </div>
+
+                <!-- Total Expenses Display -->
+                <div class="expenses-section">
+                    <h2>💸 Total Expenses</h2>
+                    <h3 id="totalExpenses">₹0</h3>
+                </div>
+
+                <!-- Expense Summary Tracking -->
+                <div id="expenseSummary">
+                    <div class="expense-summary">
+                        <p class="text-center">Loading expense summary...</p>
+                    </div>
+                </div>
+
+                <!-- Top Selling Products -->
+                <div class="top-products-section">
+                    <h2>🏆 Top 2 Selling Products</h2>
+                    <div id="topProductsList">
+                        <p class="text-center">Loading...</p>
+                    </div>
+                </div>
+
+                <!-- Low Stock Alerts -->
+                <div class="alerts-section">
+                    <h2>⚠️ Stock Alerts</h2>
+                    <div id="lowStockAlerts">
+                        <p class="text-center">Loading...</p>
+                    </div>
+                </div>
+
+                <!-- Barcode Feature Highlight -->
+                <!-- <div class="feature-highlight">
+                    <div class="feature-content">
+                        <h2>🏷️ Auto-Generated Barcodes</h2>
+                        <p>This system automatically generates unique barcodes for every product!</p>
+                        <div class="barcode-example">
+                            <div class="barcode-display">LAPTOP1234</div>
+                            <div class="barcode-format">Format: ProductName + 4 Random Digits</div>
+                        </div>
+                    </div>
+                </div> -->
+
+                <!-- Recent Activity -->
+                <div class="card-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Recent Sales</h3>
+                        </div>
+                        <div class="card-body" id="recentSales">
+                            <div class="loading">Loading...</div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Low Stock Products</h3>
+                        </div>
+                        <div class="card-body" id="lowStockProducts">
+                            <div class="loading">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Products View -->
+            <div class="content-view" id="productsView">
+                <div class="page-header">
+                    <h1 class="page-title">Product Management</h1>
+                    <button class="btn btn-primary" id="addProductBtn" onclick="showAddProductModal()">
+                        ➕ Add New Product
+                    </button>
+                </div>
+                <div class="search-container" style="margin-bottom: 20px;">
+                    <input type="text" id="productSearch" placeholder="🔍 Search by barcode or product name..." 
+                           onkeyup="filterProducts(document.getElementById('productSearch').value)"
+                           style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <div class="table-container" id="productsTable">
+                    <div class="loading">Loading products...</div>
+                </div>
+            </div>
+
+            <!-- Sales View -->
+            <div class="content-view" id="salesView">
+                <div class="page-header">
+                    <h1 class="page-title">Sales Management</h1>
+                    <div>
+                        <button class="btn btn-secondary" onclick="showBarcodeScanner()">
+                            🏷️ Scan Barcode
+                        </button>
+                        <button class="btn btn-primary" onclick="showAddSaleModal()">
+                            💰 New Sale
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Scanner Container -->
+                <div id="scannerContainer"></div>
+                
+                <div class="table-container" id="salesTable">
+                    <div class="loading">Loading sales...</div>
+                </div>
+            </div>
+
+            <!-- Employees View -->
+            <div class="content-view" id="employeesView">
+                <div class="page-header">
+                    <h1 class="page-title">Employee Management</h1>
+                    <button class="btn btn-primary" onclick="showAddEmployeeModal()">
+                        ➕ Add New Employee
+                    </button>
+                </div>
+                <div class="table-container" id="employeesTable">
+                    <div class="loading">Loading employees...</div>
+                </div>
+            </div>
+
+            <!-- Customers View -->
+            <div class="content-view" id="customersView">
+                <h1 class="page-title">Customer Management</h1>
+                <div class="table-container" id="customersTable">
+                    <p>Customer management interface - To be implemented</p>
+                </div>
+            </div>
+
+            <!-- Expenses View -->
+            <div class="content-view" id="expensesView">
+                <div class="page-header">
+                    <h1 class="page-title">Expense Tracking</h1>
+                    <button class="btn btn-primary" onclick="showAddExpenseModal()">
+                        ➕ Add New Expense
+                    </button>
+                </div>
+                <div id="expenseSummary" style="margin-bottom: 20px;"></div>
+                <div class="table-container" id="expensesTable">
+                    <p>Loading expenses...</p>
+                </div>
+            </div>
+
+            <!-- Reports View -->
+            <div class="content-view" id="reportsView">
+                <h1 class="page-title">Reports & Analytics</h1>
+                <div id="profitLossReport"></div>
+                <div id="inventoryReport"></div>
+                <div id="salesTrendReport"></div>
+            </div>
+
+            <!-- Alerts View -->
+            <div class="content-view" id="alertsView">
+                <h1 class="page-title">Alerts & Notifications</h1>
+                <div id="alertsList">
+                    <div class="loading">Loading alerts...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Container -->
+    <div id="modalContainer"></div>
+
+    <!-- Scripts -->
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/products.js"></script>
+    <script src="js/customer-purchase.js"></script>
+    <script src="js/sales.js"></script>
+    <script src="js/employees.js"></script>
+    <script src="js/customers.js"></script>
+    <script src="js/alerts.js"></script>
+    <script src="js/expenses.js"></script>
+    <script src="js/reports_new.js"></script>
+
+    <script>
+        // Check authentication on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check if user is logged in
+            const token = localStorage.getItem('token');
+            const user = localStorage.getItem('user');
+            
+            if (!token || !user) {
+                window.location.href = 'index.html';
+                return;
+            }
+            
+            // Display user info
+            try {
+                const userData = JSON.parse(user);
+                const userInfoEl = document.getElementById('userInfo');
+                if (userInfoEl) {
+                    userInfoEl.textContent = `${userData.username} (${userData.role})`;
+                }
+            } catch (e) {
+                console.error('Error parsing user data:', e);
+            }
+        });
+    </script>
+</body>
+</html>

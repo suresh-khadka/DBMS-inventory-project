@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug API Calls</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #667eea;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px 5px 5px 0;
+        }
+        button:hover {
+            background: #764ba2;
+        }
+        .output {
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success {
+            color: green;
+        }
+        .error {
+            color: red;
+        }
+        .info {
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 API Debug Tool</h1>
+        
+        <div class="test-section">
+            <h3>Backend Status</h3>
+            <button onclick="testBackend()">Test Backend Connection</button>
+            <div id="backendOutput" class="output"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>Authentication</h3>
+            <button onclick="checkAuth()">Check Auth</button>
+            <button onclick="testAuthHeaders()">Test Auth Headers</button>
+            <div id="authOutput" class="output"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>API Endpoints</h3>
+            <button onclick="testAlerts()">Test Alerts API</button>
+            <button onclick="testExpenses()">Test Expenses API</button>
+            <button onclick="testReports()">Test Reports API</button>
+            <div id="apiOutput" class="output"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>Console Logs</h3>
+            <button onclick="clearConsole()">Clear</button>
+            <div id="consoleOutput" class="output"></div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/dashboard.js"></script>
+
+    <script>
+        // Capture console logs
+        const originalLog = console.log;
+        const originalError = console.error;
+        const consoleLogs = [];
+
+        console.log = function(...args) {
+            originalLog(...args);
+            consoleLogs.push('✓ ' + args.join(' '));
+            updateConsoleDisplay();
+        };
+
+        console.error = function(...args) {
+            originalError(...args);
+            consoleLogs.push('✗ ' + args.join(' '));
+            updateConsoleDisplay();
+        };
+
+        function updateConsoleDisplay() {
+            const consoleOutput = document.getElementById('consoleOutput');
+            consoleOutput.innerHTML = consoleLogs.map(log => {
+                const cls = log.includes('✗') ? 'error' : 'info';
+                return `<div class="${cls}">${escapeHtml(log)}</div>`;
+            }).join('');
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        function log(elementId, message, type = 'info') {
+            const output = document.getElementById(elementId);
+            const html = `<div class="${type}">${escapeHtml(message)}</div>`;
+            output.innerHTML += html;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function clear(elementId) {
+            document.getElementById(elementId).innerHTML = '';
+        }
+
+        function clearConsole() {
+            consoleLogs.length = 0;
+            updateConsoleDisplay();
+        }
+
+        async function testBackend() {
+            clear('backendOutput');
+            log('backendOutput', 'Testing backend connection...', 'info');
+            
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/auth/me/', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                log('backendOutput', `Backend Status: ${response.status}`, response.ok ? 'success' : 'error');
+                log('backendOutput', `Backend URL: http://127.0.0.1:8000`, 'info');
+                
+                if (!response.ok) {
+                    log('backendOutput', 'Note: This is expected if not authenticated. Check browser console for more details.', 'info');
+                }
+            } catch (error) {
+                log('backendOutput', `❌ Connection Failed: ${error.message}`, 'error');
+                log('backendOutput', 'Make sure Django backend is running on http://127.0.0.1:8000', 'info');
+            }
+        }
+
+        function checkAuth() {
+            clear('authOutput');
+            const token = localStorage.getItem('token');
+            const user = localStorage.getItem('user');
+            
+            log('authOutput', `Token: ${token ? '✓ Present' : '✗ Missing'}`, token ? 'success' : 'error');
+            log('authOutput', `User: ${user ? '✓ Present' : '✗ Missing'}`, user ? 'success' : 'error');
+            
+            if (user) {
+                try {
+                    const userData = JSON.parse(user);
+                    log('authOutput', `User Data: ${JSON.stringify(userData)}`, 'info');
+                } catch (e) {
+                    log('authOutput', `Error parsing user data: ${e.message}`, 'error');
+                }
+            }
+        }
+
+        function testAuthHeaders() {
+            clear('authOutput');
+            const headers = getAuthHeaders();
+            log('authOutput', `Auth Headers: ${JSON.stringify(headers)}`, 'info');
+        }
+
+        async function testAlerts() {
+            clear('apiOutput');
+            log('apiOutput', 'Testing /api/alerts/...', 'info');
+            
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/alerts/', {
+                    method: 'GET',
+                    headers: getAuthHeaders()
+                });
+                
+                log('apiOutput', `Status: ${response.status}`, response.ok ? 'success' : 'error');
+                const data = await response.json();
+                log('apiOutput', `Response: ${JSON.stringify(data, null, 2)}`, response.ok ? 'success' : 'error');
+            } catch (error) {
+                log('apiOutput', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testExpenses() {
+            clear('apiOutput');
+            log('apiOutput', 'Testing /api/expenses/...', 'info');
+            
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/expenses/', {
+                    method: 'GET',
+                    headers: getAuthHeaders()
+                });
+                
+                log('apiOutput', `Status: ${response.status}`, response.ok ? 'success' : 'error');
+                const data = await response.json();
+                log('apiOutput', `Response: ${JSON.stringify(data, null, 2)}`, response.ok ? 'success' : 'error');
+            } catch (error) {
+                log('apiOutput', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testReports() {
+            clear('apiOutput');
+            log('apiOutput', 'Testing /api/reports/profit-loss/...', 'info');
+            
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/reports/profit-loss/', {
+                    method: 'GET',
+                    headers: getAuthHeaders()
+                });
+                
+                log('apiOutput', `Status: ${response.status}`, response.ok ? 'success' : 'error');
+                const data = await response.json();
+                log('apiOutput', `Response: ${JSON.stringify(data, null, 2)}`, response.ok ? 'success' : 'error');
+            } catch (error) {
+                log('apiOutput', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Initial check on load
+        window.addEventListener('DOMContentLoaded', () => {
+            log('consoleOutput', 'Debug tool loaded. Check each API endpoint below.', 'info');
+        });
+    </script>
+</body>
+</html>
